@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -137,7 +138,7 @@ func (h *ConfigHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, config)
 }
 
-// DeleteConfig handles DELETE /api/v1/configs/{id}
+// DeleteConfig deletes a chaos configuration
 func (h *ConfigHandler) DeleteConfig(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	id := vars["id"]
@@ -154,6 +155,27 @@ func (h *ConfigHandler) DeleteConfig(w http.ResponseWriter, r *http.Request) {
 		"message": "Configuration deleted successfully",
 		"id":      id,
 	})
+}
+
+// GetRequestLogs retrieves the latest request logs
+func (h *ConfigHandler) GetRequestLogs(w http.ResponseWriter, r *http.Request) {
+	// Parse limit query param
+	limitStr := r.URL.Query().Get("limit")
+	limit := int64(50) // Default limit
+	if limitStr != "" {
+		if l, err := strconv.ParseInt(limitStr, 10, 64); err == nil && l > 0 {
+			limit = l
+		}
+	}
+
+	logs, err := h.storage.GetLogs(r.Context(), limit)
+	if err != nil {
+		log.WithError(err).Error("Failed to get logs")
+		respondError(w, http.StatusInternalServerError, "Failed to get logs")
+		return
+	}
+
+	respondJSON(w, http.StatusOK, map[string]interface{}{"logs": logs})
 }
 
 // Helper functions

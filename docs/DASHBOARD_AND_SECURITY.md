@@ -13,6 +13,7 @@ Una interfaz gráfica de una sola página (SPA) para gestionar las reglas de cao
 ### Características
 
 - **Listado Visual:** Ver todas las configuraciones activas y pausadas.
+- **Live Traffic Monitor:** 🚦 Ver peticiones en tiempo real (Logs, Latencia, Status) directamente en la UI.
 - **Control Rápido:** Activar/Pausar reglas con un click.
 - **Creación Fácil:** Formulario para crear nuevas reglas sin lidiar con JSON manualmente.
 - **Copia Rápida:** Click en el ID para copiarlo al portapapeles.

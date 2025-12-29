@@ -88,6 +88,7 @@ func main() {
 	api.HandleFunc("/configs/{id}", configHandler.GetConfig).Methods("GET")
 	api.HandleFunc("/configs/{id}", configHandler.UpdateConfig).Methods("PUT")
 	api.HandleFunc("/configs/{id}", configHandler.DeleteConfig).Methods("DELETE")
+	api.HandleFunc("/logs", configHandler.GetRequestLogs).Methods("GET")
 
 	// Alias endpoints (Protected)
 	// Note: We need a subrouter or wrap individually to apply middleware only here
@@ -106,6 +107,9 @@ func main() {
 	rulesRouter.HandleFunc("/{id}", configHandler.GetConfig).Methods("GET")
 	rulesRouter.HandleFunc("/{id}", configHandler.UpdateConfig).Methods("PUT")
 	rulesRouter.HandleFunc("/{id}", configHandler.DeleteConfig).Methods("DELETE")
+	
+	// Logs alias
+	router.Handle("/logs", authMiddleware.Handler(http.HandlerFunc(configHandler.GetRequestLogs))).Methods("GET")
 
 	// Proxy endpoint - path-based routing
 	// Format: /proxy/{configID}/{path:.*}

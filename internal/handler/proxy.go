@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/google/uuid"
 	"github.com/medalcode/chaos-api-proxy/internal/chaos"
 	"github.com/medalcode/chaos-api-proxy/internal/metrics"
 	"github.com/medalcode/chaos-api-proxy/internal/storage"
@@ -24,24 +25,10 @@ type ProxyHandler struct {
 	engine  *chaos.Engine
 }
 
-// NewProxyHandler creates a new proxy handler
-func NewProxyHandler(storage *storage.RedisStorage) *ProxyHandler {
-	return &ProxyHandler{
-		storage: storage,
-		engine:  chaos.NewEngine(),
-	}
-}
+// ... NewProxyHandler ...
 
 // responseWriterWrapper captures the status code
-type responseWriterWrapper struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func (rw *responseWriterWrapper) WriteHeader(code int) {
-	rw.statusCode = code
-	rw.ResponseWriter.WriteHeader(code)
-}
+// ...
 
 // ServeHTTP implements http.Handler interface
 func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -62,11 +49,37 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Wrap the response writer to capture status code
 	wrapper := &responseWriterWrapper{ResponseWriter: w, statusCode: http.StatusOK}
 	
-	// Ensure metrics are recorded at the end
+	// Ensure metrics and LOGS are recorded at the end
 	defer func() {
-		duration := time.Since(start).Seconds()
+		duration := time.Since(start)
+		
+		// 1. Prometheus Metrics
 		metrics.RequestsTotal.WithLabelValues(configID, strconv.Itoa(wrapper.statusCode), chaosType).Inc()
-		metrics.RequestDuration.WithLabelValues(configID, chaosType).Observe(duration)
+		metrics.RequestDuration.WithLabelValues(configID, chaosType).Observe(duration.Seconds())
+		
+		// 2. Persistent Logs (Tracing)
+		// Only log if we have a configID (valid request attempt)
+		if configID != "" {
+			reqLog := &storage.RequestLog{
+				ID:         uuid.New().String(),
+				Timestamp:  start,
+				ConfigID:   configID,
+				Method:     r.Method,
+				Path:       r.URL.Path,
+				StatusCode: wrapper.statusCode,
+				DurationMs: duration.Milliseconds(),
+				ChaosType:  chaosType,
+			}
+			
+			// Fire and forget logging (don't block response on Redis error)
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+				defer cancel()
+				if err := h.storage.LogRequest(ctx, reqLog); err != nil {
+					log.WithError(err).Error("Failed to trace request")
+				}
+			}()
+		}
 	}()
 
 	// Get configuration

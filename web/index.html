@@ -399,7 +399,66 @@
           <h3>No hay configuraciones activas</h3>
           <p>Crea una nueva regla de caos para empezar.</p>
         </div>
-      </main>
+            <!-- Live Logs Section -->
+            <div style="margin-top: 4rem;">
+                <h2 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                    🚦 Live Traffic Monitor
+                    <span v-if="logs.length > 0" style="font-size: 0.8rem; background: var(--card-bg); padding: 0.2rem 0.5rem; border-radius: 99px; border: 1px solid var(--border);">
+                        Últimos {{ logs.length }} eventos
+                    </span>
+                </h2>
+                
+                <div class="card" style="padding: 0; overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.2);">
+                                <th style="padding: 1rem; color: var(--text-muted);">Timestamp</th>
+                                <th style="padding: 1rem; color: var(--text-muted);">Method</th>
+                                <th style="padding: 1rem; color: var(--text-muted);">Path</th>
+                                <th style="padding: 1rem; color: var(--text-muted);">Status</th>
+                                <th style="padding: 1rem; color: var(--text-muted);">Latency</th>
+                                <th style="padding: 1rem; color: var(--text-muted);">Chaos</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-if="logs.length === 0">
+                                <td colspan="6" style="padding: 2rem; text-align: center; color: var(--text-muted);">
+                                    Esperando tráfico... (Polling cada 3s)
+                                </td>
+                            </tr>
+                            <tr v-for="log in logs" :key="log.id" style="border-bottom: 1px solid rgba(255,255,255,0.05); transition: background 0.2s;">
+                                <td style="padding: 0.75rem 1rem; font-family: monospace; color: var(--text-muted);">
+                                    {{ new Date(log.timestamp).toLocaleTimeString() }}
+                                </td>
+                                <td style="padding: 0.75rem 1rem;">
+                                    <span :style="{
+                                        color: log.method === 'GET' ? '#60a5fa' : 
+                                               log.method === 'POST' ? '#34d399' : 
+                                               log.method === 'DELETE' ? '#ef4444' : '#f472b6',
+                                        fontWeight: 'bold'
+                                    }">{{ log.method }}</span>
+                                </td>
+                                <td style="padding: 0.75rem 1rem; font-family: monospace;">{{ log.path }}</td>
+                                <td style="padding: 0.75rem 1rem;">
+                                    <span class="badge" :class="log.status_code >= 400 ? 'inactive' : 'active'" 
+                                          :style="log.status_code >= 400 ? 'color: var(--danger); background: rgba(239, 68, 68, 0.1);' : ''">
+                                        {{ log.status_code }}
+                                    </span>
+                                </td>
+                                <td style="padding: 0.75rem 1rem; font-family: monospace;">{{ log.duration_ms }}ms</td>
+                                <td style="padding: 0.75rem 1rem;">
+                                    <span v-if="log.chaos_type !== 'none'" 
+                                          style="color: var(--primary); font-size: 0.8rem; background: rgba(99, 102, 241, 0.1); padding: 0.2rem 0.5rem; border-radius: 4px;">
+                                        ⚡ {{ log.chaos_type }}
+                                    </span>
+                                    <span v-else style="color: var(--text-muted); font-size: 0.8rem;">-</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
 
       <button class="fab" @click="showModal = true">+</button>
 
@@ -505,6 +564,7 @@
                 return {
                     apiKey: localStorage.getItem('chaos_api_key') || '',
                     configs: [],
+                    logs: [],
                     loading: true,
                     error: null,
                     showModal: false,
@@ -523,6 +583,11 @@
             },
             mounted() {
                 this.fetchConfigs()
+                // Poll for logs
+                this.fetchLogs()
+                setInterval(() => {
+                    if (!document.hidden) this.fetchLogs()
+                }, 3000)
             },
             methods: {
                 saveKey() {
