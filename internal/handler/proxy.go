@@ -1,9 +1,12 @@
+```go
 package handler
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -224,10 +227,38 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}).Debug("Proxying request")
 	}
 
-	// Customize ModifyResponse to add chaos headers to response
+	// Customize ModifyResponse to add chaos headers and Fuzz body
 	proxy.ModifyResponse = func(resp *http.Response) error {
 		resp.Header.Set("X-Chaos-Proxy", "true")
 		resp.Header.Set("X-Chaos-Proxy-Config-ID", configID)
+
+		// Check if we should fuzz response
+		if h.engine.ShouldFuzz(config.Rules) {
+			// Read body
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				log.WithError(err).Warn("Failed to read response body for fuzzing")
+				return nil // Return original
+			}
+			resp.Body.Close()
+
+			// Fuzz
+			newBody, mutated := h.engine.FuzzBody(body, config.Rules)
+			
+			// Always restore body reader (whether mutated or not) to avoid "body closed" errors
+			resp.Body = ioutil.NopCloser(bytes.NewReader(newBody))
+
+			if mutated {
+				resp.ContentLength = int64(len(newBody))
+				resp.Header.Set("Content-Length", strconv.Itoa(len(newBody)))
+				resp.Header.Set("X-Chaos-Proxy-Fuzzed", "true")
+				
+				// Update metrics
+				metrics.ChaosInjections.WithLabelValues(configID, "response_fuzzing").Inc()
+				
+				log.WithField("config_id", configID).Info("🔥 Fuzzed response body")
+			}
+		}
 		return nil
 	}
 

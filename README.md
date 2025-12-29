@@ -10,6 +10,7 @@ El Chaos API Proxy intercepta peticiones HTTP/HTTPS hacia APIs externas y aplica
 
 - ✅ **Inyección de Latencia**: Simula conexiones lentas con latencia fija o variable (jitter)
 - ✅ **Inyección de Errores**: Devuelve errores HTTP configurables (500, 503, 429, etc.)
+- **🧬 Response Fuzzing**: Muta aleatoriamente cuerpos JSON válidos (cambio de tipos, valores nulos, corrupción) para probar la robustez de los clientes.
 - ✅ **Desconexión de Socket**: Cierra conexiones sin responder para simular timeouts
 - ✅ **Limitación de Ancho de Banda**: Simula conexiones lentas con throttling configurable
 - ✅ **Modificación de Headers**: Añade, modifica o elimina headers HTTP

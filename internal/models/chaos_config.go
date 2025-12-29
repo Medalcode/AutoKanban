@@ -37,9 +37,19 @@ type ChaosRules struct {
 	// Bandwidth Limiting
 	BandwidthLimitKbps int `json:"bandwidth_limit_kbps,omitempty"` // Limit bandwidth in KB/s
 
+	// Response Fuzzing (Mutation)
+	ResponseFuzzing *FuzzingConfig `json:"response_fuzzing,omitempty"`
+
 	// HTTP Specific
 	ModifyHeaders map[string]string `json:"modify_headers,omitempty"` // Headers to add/modify
 	RemoveHeaders []string          `json:"remove_headers,omitempty"` // Headers to remove
+}
+
+// FuzzingConfig defines how to mutate response bodies
+type FuzzingConfig struct {
+	Enabled      bool    `json:"enabled"`
+	Probability  float64 `json:"probability"`   // 0.0 to 1.0 (likelihood of fuzzing a valid response)
+	MutationRate float64 `json:"mutation_rate"` // 0.0 to 1.0 (percentage of fields to mutate)
 }
 
 // ToJSON converts ChaosConfig to JSON string
