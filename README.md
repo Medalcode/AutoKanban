@@ -264,6 +264,15 @@ fetch(url).then((res) => {
 });
 ```
 
+## 📊 Observabilidad (Prometheus)
+
+El proxy expone métricas detalladas en `/metrics`.
+
+- **Métricas**: `http://localhost:8081/metrics`
+- **Prometheus UI**: `http://localhost:9090`
+
+Consulta la [Guía de Métricas](docs/METRICS.md) para detalles sobre contadores de tráfico, histogramas de latencia y monitoreo de inyección de caos.
+
 ## 🛠️ Development
 
 ```bash

@@ -13,6 +13,7 @@ import (
 	"github.com/medalcode/chaos-api-proxy/internal/handler"
 	"github.com/medalcode/chaos-api-proxy/internal/storage"
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -57,6 +58,9 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"healthy"}`))
 	}).Methods("GET")
+	
+	// Metrics endpoint
+	router.Handle("/metrics", promhttp.Handler()).Methods("GET")
 
 	// Config management API
 	api := router.PathPrefix("/api/v1").Subrouter()

@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/medalcode/chaos-api-proxy/internal/chaos"
+	"github.com/medalcode/chaos-api-proxy/internal/metrics"
 	"github.com/medalcode/chaos-api-proxy/internal/storage"
 	log "github.com/sirupsen/logrus"
 )
@@ -30,13 +32,25 @@ func NewProxyHandler(storage *storage.RedisStorage) *ProxyHandler {
 	}
 }
 
+// responseWriterWrapper captures the status code
+type responseWriterWrapper struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rw *responseWriterWrapper) WriteHeader(code int) {
+	rw.statusCode = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
 // ServeHTTP implements http.Handler interface
 func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
 	vars := mux.Vars(r)
 	configID := vars["configID"]
-	
+	chaosType := "none"
+
 	// Support for header-based config identification
-	// If configID is empty from path, try to get it from header
 	if configID == "" {
 		configID = r.Header.Get("X-Chaos-Config-ID")
 		if configID == "" {
@@ -45,6 +59,16 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Wrap the response writer to capture status code
+	wrapper := &responseWriterWrapper{ResponseWriter: w, statusCode: http.StatusOK}
+	
+	// Ensure metrics are recorded at the end
+	defer func() {
+		duration := time.Since(start).Seconds()
+		metrics.RequestsTotal.WithLabelValues(configID, strconv.Itoa(wrapper.statusCode), chaosType).Inc()
+		metrics.RequestDuration.WithLabelValues(configID, chaosType).Observe(duration)
+	}()
+
 	// Get configuration
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -52,14 +76,15 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	config, err := h.storage.GetConfig(ctx, configID)
 	if err != nil {
 		log.WithError(err).WithField("config_id", configID).Error("Failed to get config")
-		http.Error(w, "Configuration not found", http.StatusNotFound)
+		wrapper.WriteHeader(http.StatusNotFound)
+		w.Write([]byte("Configuration not found"))
 		return
 	}
 
 	// Check if config is enabled
 	if !config.Enabled {
-		log.WithField("config_id", configID).Warn("Config is disabled")
-		http.Error(w, "Configuration is disabled", http.StatusForbidden)
+		wrapper.WriteHeader(http.StatusForbidden)
+		w.Write([]byte("Configuration is disabled"))
 		return
 	}
 
@@ -74,6 +99,25 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"drop_connection":     decision.ShouldDropConnection,
 	}).Info("Processing proxy request")
 
+	// Determine chaos type for metrics
+	if decision.ShouldDropConnection {
+		chaosType = "drop_connection"
+		metrics.ChaosInjections.WithLabelValues(configID, "drop_connection").Inc()
+	} else if decision.ShouldInjectError {
+		chaosType = "error"
+		metrics.ChaosInjections.WithLabelValues(configID, "error").Inc()
+	} else if decision.ShouldInjectLatency {
+		// Latency can happen with explicit error or success, but if it's the main feature:
+		if chaosType == "none" {
+			chaosType = "latency"
+		}
+		metrics.ChaosInjections.WithLabelValues(configID, "latency").Inc()
+	}
+	
+	if config.Rules.BandwidthLimitKbps > 0 {
+		metrics.ChaosInjections.WithLabelValues(configID, "bandwidth_limit").Inc()
+	}
+
 	// Handle drop connection
 	if decision.ShouldDropConnection {
 		log.WithField("config_id", configID).Info("Dropping connection")
@@ -86,7 +130,7 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		// Fallback if hijacking fails
-		w.WriteHeader(http.StatusServiceUnavailable)
+		wrapper.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
 
@@ -103,7 +147,7 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(decision.ErrorCode)
+		wrapper.WriteHeader(decision.ErrorCode)
 		w.Write([]byte(decision.ErrorBody))
 		return
 	}
@@ -121,7 +165,8 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	targetURL, err := url.Parse(config.Target)
 	if err != nil {
 		log.WithError(err).Error("Failed to parse target URL")
-		http.Error(w, "Invalid target URL", http.StatusInternalServerError)
+		wrapper.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Invalid target URL"))
 		return
 	}
 
@@ -177,20 +222,25 @@ func (h *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		log.WithError(err).Error("Proxy error")
 		w.Header().Set("X-Chaos-Proxy-Error", "true")
-		http.Error(w, "Proxy error", http.StatusBadGateway)
+		wrapper.WriteHeader(http.StatusBadGateway)
+		w.Write([]byte("Proxy error"))
 	}
 
 	// Bandwidth limiting wrapper (if configured)
 	if config.Rules.BandwidthLimitKbps > 0 {
-		w = &bandwidthLimitedWriter{
-			ResponseWriter: w,
+		// Note: We use the original 'w' here because bandwidthLimitedWriter needs to wrap the underlying ResponseWriter
+		// But passing 'wrapper' is also fine as it implements ResponseWriter
+		limitedWriter := &bandwidthLimitedWriter{
+			ResponseWriter: wrapper, // Use wrapper to capture writes
 			limitKbps:      config.Rules.BandwidthLimitKbps,
 			engine:         h.engine,
 		}
+		proxy.ServeHTTP(limitedWriter, r)
+		return
 	}
 
-	// Execute proxy
-	proxy.ServeHTTP(w, r)
+	// Execute proxy with wrapper
+	proxy.ServeHTTP(wrapper, r)
 }
 
 // bandwidthLimitedWriter wraps http.ResponseWriter to limit bandwidth
