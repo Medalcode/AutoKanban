@@ -35,7 +35,7 @@ export class ChaosEngine {
       decision.shouldLatency = true;
       let latency = rules.latency_ms;
       if (rules.jitter) {
-        const jitter = (Math.random() * rules.jitter * 2) - rules.jitter;
+        const jitter = Math.random() * rules.jitter * 2 - rules.jitter;
         latency += jitter;
       }
       decision.latencyMs = Math.max(0, latency);
@@ -50,7 +50,7 @@ export class ChaosEngine {
 
     // 4. Dynamic Scripting (The God Mode)
     if (rules.script && req) {
-        scriptEngine.execute(rules.script, { req, decision });
+      scriptEngine.execute(rules.script, { req, decision });
     }
 
     return decision;
@@ -58,15 +58,15 @@ export class ChaosEngine {
 
   fuzzBody(body: any, rate: number): any {
     if (!body) return body;
-    
+
     // Deep clone to avoid mutating original if passed by reference
     let content = body;
     try {
-        // If it's a Buffer or string, try to parse JSON
-        if (Buffer.isBuffer(body)) content = JSON.parse(body.toString());
-        else if (typeof body === 'string') content = JSON.parse(body);
+      // If it's a Buffer or string, try to parse JSON
+      if (Buffer.isBuffer(body)) content = JSON.parse(body.toString());
+      else if (typeof body === 'string') content = JSON.parse(body);
     } catch {
-        return body; // Not JSON
+      return body; // Not JSON
     }
 
     return this.mutate(content, rate);
@@ -74,7 +74,7 @@ export class ChaosEngine {
 
   private mutate(obj: any, rate: number): any {
     if (Array.isArray(obj)) {
-      return obj.map(v => this.mutate(v, rate));
+      return obj.map((v) => this.mutate(v, rate));
     } else if (typeof obj === 'object' && obj !== null) {
       const newObj: any = {};
       for (const key in obj) {
@@ -94,19 +94,21 @@ export class ChaosEngine {
     const type = typeof val;
     const choice = Math.floor(Math.random() * 4);
 
-    switch(choice) {
-      case 0: return null; // Nullify
+    switch (choice) {
+      case 0:
+        return null; // Nullify
       case 1: // Type Swap
         if (type === 'string') return 12345;
-        if (type === 'number') return "should_be_number";
+        if (type === 'number') return 'should_be_number';
         if (type === 'boolean') return 0;
-        return "swapped";
+        return 'swapped';
       case 2: // Corruption
-        if (type === 'string') return val + "_CHAOS";
+        if (type === 'string') return val + '_CHAOS';
         if (type === 'number') return val * -1;
         if (type === 'boolean') return !val;
         return val;
-      default: return val;
+      default:
+        return val;
     }
   }
 }

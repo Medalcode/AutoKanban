@@ -11,6 +11,7 @@ export interface ChaosRules {
     probability: number;
     mutation_rate: number;
   };
+  rate_limit_per_second?: number;
   modify_headers?: Record<string, string>;
   remove_headers?: string[];
   script?: string; // Custom JS logic: (context) => void

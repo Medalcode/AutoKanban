@@ -8,13 +8,17 @@
 ## 🚀 Características Principales
 
 - **🛡️ Intercepción Transparente**: Funciona como un proxy inverso entre tus clientes y tu API real.
+- **🔌 Soporte WebSocket (NUEVO)**: Proxy transparente para conexiones `ws://` y `wss://`.
+- **⏱️ Rate Limiting (NUEVO)**: Limita peticiones por segundo para simular estrés.
+- **📚 API Docs (NUEVO)**: Documentación interactiva Swagger/OpenAPI en `/api-docs`.
 - **⏱️ Inyección de Latencia**: Fija o con _jitter_ (variable).
 - **💥 Inyección de Errores**: Retorna 500, 503, 404 a voluntad.
 - **🧬 Response Fuzzing**: Muta JSONs para probar robustez de clientes.
-- **📜 Dynamic Scripting (NUEVO)**: Escribe lógica JS personalizada para decidir cuándo y cómo aplicar caos.
+- **📜 Dynamic Scripting**: Escribe lógica JS personalizada para decidir cuándo y cómo aplicar caos.
 - **📊 Métricas Prometheus**: Dashboards listos para consumir.
 - **🚦 Live Logs**: Monitor de tráfico en tiempo real.
 - **💻 Web Dashboard**: UI intuitiva para gestionar reglas y ver logs.
+- **✅ QA Ready**: Incluye Tests (Jest), Linter (ESLint) y CI (GitHub Actions).
 
 ---
 
@@ -42,7 +46,10 @@ Requisitos: Node.js 18+, Redis.
 npm install
 
 # Configurar entorno
-cp .env.example .env # (Opcional, defaults funcionan)
+cp .env.example .env
+
+# Correr Tests (NUEVO)
+npm test
 
 # Arrancar en modo desarrollo
 npm run dev
@@ -62,7 +69,7 @@ Ahora puedes escribir scripts JavaScript para controlar el caos con precisión q
 **Ejemplo 1: Caos solo para iPhones**
 
 ```javascript
-if (req.headers["user-agent"] && req.headers["user-agent"].includes("iPhone")) {
+if (req.headers['user-agent'] && req.headers['user-agent'].includes('iPhone')) {
   decision.shouldLatency = true;
   decision.latencyMs = 2000;
 }
@@ -71,7 +78,7 @@ if (req.headers["user-agent"] && req.headers["user-agent"].includes("iPhone")) {
 **Ejemplo 2: Error 1 de cada 10 peticiones POST**
 
 ```javascript
-if (req.method === "POST" && Math.random() < 0.1) {
+if (req.method === 'POST' && Math.random() < 0.1) {
   decision.shouldError = true;
   decision.errorCode = 503;
 }
