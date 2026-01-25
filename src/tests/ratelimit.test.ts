@@ -1,9 +1,12 @@
 import request from 'supertest';
 jest.mock('ioredis');
 import { app } from '../server';
-import { redisService } from '../services/redis';
-import { ChaosConfig } from '../models/types';
+import { RedisConfigRepository } from '../infrastructure/redis/RedisConfigRepository';
+import { ChaosConfig } from '../core/domain/types';
 import { RateLimiterRedis } from 'rate-limiter-flexible';
+import redisClient from '../infrastructure/redis/RedisClient';
+
+const configRepo = new RedisConfigRepository();
 
 // Mock RateLimiterRedis
 jest.mock('rate-limiter-flexible', () => {
@@ -29,7 +32,7 @@ const BLOCKED_CONFIG_ID = 'blocked_config';
 describe('Rate Limiting Middleware', () => {
     beforeAll(async () => {
         // Setup Configs in Redis (Mock)
-        await redisService.saveConfig({
+        await configRepo.save({
             id: RL_CONFIG_ID,
             name: 'Allowed Config',
             target: 'http://example.com',
@@ -41,7 +44,7 @@ describe('Rate Limiting Middleware', () => {
             }
         });
 
-        await redisService.saveConfig({
+        await configRepo.save({
             id: BLOCKED_CONFIG_ID,
             name: 'Blocked Config',
             target: 'http://example.com',
@@ -55,7 +58,7 @@ describe('Rate Limiting Middleware', () => {
     });
 
     afterAll(async () => {
-        await redisService.quit();
+        await redisClient.quit();
     });
 
     it('should allow request when within limit', async () => {

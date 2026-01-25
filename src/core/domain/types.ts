@@ -38,3 +38,13 @@ export interface RequestLog {
   duration_ms: number;
   chaos_type: string;
 }
+
+export interface ChaosDecision {
+  shouldLatency: boolean;
+  latencyMs: number;
+  shouldError: boolean;
+  errorCode: number;
+  errorBody?: string;
+  shouldFuzz: boolean;
+  headers: Record<string, string>;
+}

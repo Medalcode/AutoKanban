@@ -1,20 +1,14 @@
 import express from 'express';
-import { IncomingMessage, ServerResponse, ClientRequest } from 'http';
-import { createProxyMiddleware, responseInterceptor, Options } from 'http-proxy-middleware';
-import { RateLimiterRedis } from 'rate-limiter-flexible';
-import swaggerUi from 'swagger-ui-express';
-import swaggerJsdoc from 'swagger-jsdoc';
-import cors from 'cors';
-import { v4 as uuidv4 } from 'uuid';
+import { IncomingMessage } from 'http';
+import { createProxyMiddleware, responseInterceptor } from 'http-proxy-middleware';
 import promClient from 'prom-client';
 import path from 'path';
-
-import { config } from './config';
-import { redisService } from './services/redis';
-import { chaosEngine } from './chaos';
-import { configController } from './controllers/configController';
-import { authMiddleware } from './middleware/auth';
-import { ChaosConfig, RequestLog } from './models/types';
+import cors from 'cors';
+import swaggerUi from 'swagger-ui-express';
+import swaggerJsdoc from 'swagger-jsdoc';
+import { chaosProxyService } from './container';
+import { config } from './config'; // Assuming src/config/index.ts exports 'config'
+import apiRouter from './api/routes/apiRoutes';
 
 // Metrics Setup
 const collectDefaultMetrics = promClient.collectDefaultMetrics;
@@ -36,13 +30,11 @@ const app = express();
 
 // Basic Middleware
 app.use(cors());
-app.use(express.json()); // NOTE: interfere with proxy body? Only for API routes.
-// We should apply json parser only to API routes to avoid messing with proxy streams.
 
 // Static UI
 app.use('/dashboard', express.static(path.join(__dirname, '../web')));
 
-// Swagger Configuration
+// Swagger
 const swaggerOptions = {
   definition: {
     openapi: '3.0.0',
@@ -51,33 +43,16 @@ const swaggerOptions = {
       version: '1.0.0',
       description: 'API for managing chaos configurations and rules.',
     },
-    servers: [
-      {
-        url: `http://localhost:${config.port}`,
-        description: 'Local Server',
-      },
-    ],
+    servers: [{ url: `http://localhost:${config.port}`, description: 'Local Server' }],
   },
-  apis: ['./src/controllers/*.ts', './src/server.ts'], // Files containing annotations
+  apis: ['./src/api/controllers/*.ts', './src/server.ts'], 
 };
-
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // API Routes
-const apiRouter = express.Router();
-apiRouter.use(express.json());
-apiRouter.use(authMiddleware);
-apiRouter.post('/configs', configController.create);
-apiRouter.get('/configs', configController.list);
-apiRouter.get('/configs/:id', configController.get);
-apiRouter.put('/configs/:id', configController.update);
-apiRouter.delete('/configs/:id', configController.delete);
-apiRouter.get('/logs', configController.getLogs);
-
-app.use('/api/v1', apiRouter);
-// Alias
-app.use('/rules', apiRouter);
+app.use('/api/v1', express.json(), apiRouter);
+app.use('/rules', express.json(), apiRouter); // Alias
 
 // Metrics
 app.get('/metrics', async (req, res) => {
@@ -85,151 +60,84 @@ app.get('/metrics', async (req, res) => {
   res.end(await promClient.register.metrics());
 });
 
-// PROXY LOGIC
-// We capture specific path or header
-// Helper to resolve config
-async function resolveConfig(req: IncomingMessage): Promise<ChaosConfig | null> {
-    const url = req.url || '';
-    const headers = req.headers || {};
-    
-    let configId = headers['x-chaos-config-id'] as string;
-    
-    // Path based: /proxy/:id/foo
-    if (url.startsWith('/proxy/')) {
-        const parts = url.split('/');
-        if (parts.length >= 3) {
-            configId = parts[2];
-        }
-    }
-
-    if (!configId) return null;
-
-    try {
-        const cfg = await redisService.getConfig(configId);
-        if (!cfg || !cfg.enabled) return null;
-        return cfg;
-    } catch (e) {
-        console.error('Redis Error', e);
-        return null;
-    }
-}
-
-// HTTP Middleware
-app.use(async (req, res, next) => {
+// Chaos Middleware Logic
+// We use a custom middleware to resolve config and decide chaos BEFORE the proxy middleware
+const chaosMiddleware = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     // Skip API, Metrics, Dashboard
-    if (req.path.startsWith('/api/') || req.path.startsWith('/dashboard') || req.path.startsWith('/metrics') || req.path.startsWith('/rules')) {
+    if (req.path.startsWith('/api/') || req.path.startsWith('/dashboard') || req.path.startsWith('/metrics') || req.path.startsWith('/api-docs')) {
         return next();
     }
 
     const start = Date.now();
-    const cfg = await resolveConfig(req);
-
-    if (!cfg) {
-        return res.status(404).send('Chaos Proxy: Missing Config ID or Config Not Found');
+    
+    // 1. Resolve Config
+    const configId = await chaosProxyService.resolveConfigString(req.url, req.headers);
+    if (!configId) {
+        return res.status(404).send('Chaos Proxy: Missing Config ID'); // or pass to next() if we want to allow non-proxied traffic?
     }
 
-    // Rate Limiting
-    if (cfg.rules && cfg.rules.rate_limit_per_second) {
-        try {
-            // Create or get limiter for this config
-            // We use a simple key based on ID + limit to invalidate if limit changes
-            const limitKey = `${cfg.id}:${cfg.rules.rate_limit_per_second}`;
-            // For simplicity in this monolithic file, we instantiate a limiter. 
-            // Optimally: cache this. `rate-limiter-flexible` is lightweight.
-            // But connecting to Redis every time is bad? No, it uses the existing client:
-            
-            const limiter = new RateLimiterRedis({
-                storeClient: redisService.client,
-                keyPrefix: 'chaos:rl',
-                points: cfg.rules.rate_limit_per_second, 
-                duration: 1, // per second
-            });
-
-            await limiter.consume(cfg.id); 
-        } catch (rej) {
-            // 429 Too Many Requests
-            return res.status(429).send('Too Many Requests');
-        }
+    const cfg = await chaosProxyService.getConfig(configId);
+    if (!cfg || !cfg.enabled) {
+        return res.status(404).send('Chaos Proxy: Config Not Found or Disabled');
     }
 
-    // Make Chaos Decision
-    const decision = chaosEngine.decide(cfg.rules, req);
-    const chaosType = decision.shouldError ? 'error' : (decision.shouldLatency ? 'latency' : 'none');
-
-    // Store for logging in onFinish
-    const logData: RequestLog = {
-        id: uuidv4(),
-        timestamp: new Date().toISOString(),
-        config_id: cfg.id,
-        method: req.method,
-        path: req.originalUrl,
-        status_code: 200, // placeholder
-        duration_ms: 0,
-        chaos_type: chaosType
-    };
-
-    // 1. Error Injection
-    if (decision.shouldError) {
-        for (const [k, v] of Object.entries(decision.headers)) res.set(k, v);
-        res.status(decision.errorCode).send(decision.errorBody);
-        
-        // Log
-        logData.status_code = decision.errorCode;
-        logData.duration_ms = Date.now() - start;
-        requestCounter.inc({ config_id: cfg.id, status_code: decision.errorCode, chaos_type: 'error' });
-        redisService.logRequest(logData);
-        return;
+    // 2. Rate Limit
+    const allowed = await chaosProxyService.checkRateLimit(cfg);
+    if (!allowed) {
+        return res.status(429).send('Too Many Requests');
     }
 
-    // 2. Latency Injection
-    if (decision.shouldLatency) {
-        await new Promise(r => setTimeout(r, decision.latencyMs));
-    }
-
-    // Attach data to req for proxy middleware to use
+    // 3. Make Decision
+    const decision = chaosProxyService.decideChaos(cfg, req);
+    
+    // Attach context
     (req as any).chaosConfig = cfg;
     (req as any).chaosDecision = decision;
     (req as any).chaosStartTime = start;
-    (req as any).chaosLogData = logData;
 
-    next(); // Proceed to proxy middleware
-});
-
-// Custom Upgrade Handler for WebSockets
-const handleUpgrade = async (req: IncomingMessage, socket: any, head: any) => {
-    const cfg = await resolveConfig(req);
-    if (!cfg) {
-        socket.destroy();
-        return;
+    // 4. Immediate Actions
+    // Error
+    if (decision.shouldError) {
+        chaosProxyService.logRequest(cfg.id, { method: req.method, originalUrl: req.originalUrl }, {
+            statusCode: decision.errorCode,
+            duration: Date.now() - start,
+            type: 'error'
+        });
+        requestCounter.inc({ config_id: cfg.id, status_code: decision.errorCode, chaos_type: 'error' });
+        
+        for (const [k, v] of Object.entries(decision.headers)) res.set(k, v);
+        return res.status(decision.errorCode).send(decision.errorBody);
     }
-    
-    // Attach config
-    (req as any).chaosConfig = cfg;
-    
-    // TODO: Apply Chaos to WS handshake? (Latency/Jitter could go here)
-    // For now transparency.
-    
-    proxy.upgrade(req, socket, head);
+
+    // Latency
+    if (decision.shouldLatency) {
+        // We await here. Node handles concurrently fine.
+        await new Promise(r => setTimeout(r, decision.latencyMs));
+    }
+
+    next();
 };
 
-// Proxy Middleware
+app.use(chaosMiddleware);
+
+// Proxy Definition
 const proxy = createProxyMiddleware({
   router: (req) => {
-    const cfg = (req as any).chaosConfig as ChaosConfig;
-    return cfg.target; // Dynamic target
+    const cfg = (req as any).chaosConfig;
+    return cfg ? cfg.target : 'http://localhost'; // Fallback to avoid crash if middleware skipped incorrectly
   },
   pathRewrite: (path, req) => {
-    const cfg = (req as any).chaosConfig as ChaosConfig;
-    if (path.startsWith(`/proxy/${cfg.id}`)) {
+    const cfg = (req as any).chaosConfig;
+    if (cfg && path.startsWith(`/proxy/${cfg.id}`)) {
       return path.replace(`/proxy/${cfg.id}`, '') || '/';
     }
     return path;
   },
   changeOrigin: true,
-  ws: true, // Enable WebSocket proxying
+  ws: true, // we will handle upgrades manually to ensure context
   selfHandleResponse: true,
   on: {
-    proxyReq: (proxyReq: ClientRequest, req: IncomingMessage, res: ServerResponse) => {
+    proxyReq: (proxyReq, req, res) => {
       const decision = (req as any).chaosDecision;
       if (decision && decision.headers) {
         Object.entries(decision.headers).forEach(([k, v]) => {
@@ -238,17 +146,20 @@ const proxy = createProxyMiddleware({
       }
       proxyReq.setHeader('X-Chaos-Proxy', 'true');
     },
-    proxyRes: responseInterceptor(async (responseBuffer, proxyRes, req, res) => {
+    proxyRes: responseInterceptor(async (responseBuffer, proxyRes, req: IncomingMessage, res) => {
       const decision = (req as any).chaosDecision;
-      const cfg = (req as any).chaosConfig as ChaosConfig;
+      const cfg = (req as any).chaosConfig;
+      
+      // If we somehow got here without config (shouldn't happen due to middleware)
+      if (!cfg) return responseBuffer;
 
       let buffer = responseBuffer;
 
       // Fuzzing
-      if (decision && decision.shouldFuzz && cfg && cfg.rules && cfg.rules.response_fuzzing) {
+      if (decision && decision.shouldFuzz && cfg.rules.response_fuzzing) {
         try {
           const bodyStr = responseBuffer.toString('utf8');
-          const mutated = chaosEngine.fuzzBody(bodyStr, cfg.rules.response_fuzzing.mutation_rate || 0.1);
+          const mutated = chaosProxyService.fuzzBody(bodyStr, cfg.rules.response_fuzzing.mutation_rate || 0.1);
           buffer = Buffer.from(JSON.stringify(mutated));
           res.setHeader('X-Chaos-Proxy-Fuzzed', 'true');
         } catch (e) {
@@ -256,48 +167,58 @@ const proxy = createProxyMiddleware({
         }
       }
 
-      // Metrics & Logging
+      // Logging & Metrics
       const start = (req as any).chaosStartTime;
-      const logData = (req as any).chaosLogData as RequestLog;
+      const duration = Date.now() - start;
+      const chaosType = decision.shouldFuzz ? 'fuzzing' : (decision.shouldLatency ? 'latency' : 'none');
 
-      if (start && logData && cfg) {
-        const duration = Date.now() - start;
-        requestCounter.inc({
-          config_id: cfg.id,
-          status_code: res.statusCode,
-          chaos_type: decision.shouldFuzz ? 'fuzzing' : (decision.shouldLatency ? 'latency' : 'none')
-        });
-        latencyHistogram.observe({
-          config_id: cfg.id,
-          chaos_type: decision.shouldFuzz ? 'fuzzing' : (decision.shouldLatency ? 'latency' : 'none')
-        }, duration / 1000);
+      requestCounter.inc({
+        config_id: cfg.id,
+        status_code: res.statusCode,
+        chaos_type: chaosType
+      });
+      latencyHistogram.observe({
+        config_id: cfg.id,
+        chaos_type: chaosType
+      }, duration / 1000);
 
-        logData.status_code = res.statusCode;
-        logData.duration_ms = duration;
-        redisService.logRequest(logData).catch(console.error);
-      }
+      chaosProxyService.logRequest(cfg.id, { method: req.method || 'GET', originalUrl: req.url || '/' }, {
+        statusCode: res.statusCode,
+        duration: duration,
+        type: chaosType
+      });
+
       return buffer;
-    }),
-    proxyReqWs: (proxyReq: ClientRequest, req: IncomingMessage, socket: any, options: any, head: any) => {
-      // WS Handshake manipulation could happen here
-      console.log('🌪️ WS Connection Upgrade');
-      // Add header specific for WS if needed
-      proxyReq.setHeader('X-Chaos-Proxy-WS', 'true');
-    }
+    })
   }
 });
 
-// Use proxy for everything else
 app.use('/', proxy);
 
-// Export app, proxy, and handler for testing
+// Custom WebSocket Upgrade Handler
+const handleUpgrade = async (req: IncomingMessage, socket: any, head: any) => {
+    // We need to resolve config manually here as express middleware chain doesn't run on upgrade
+    const configId = await chaosProxyService.resolveConfigString(req.url || '', req.headers);
+    if (!configId) {
+        socket.destroy();
+        return;
+    }
+    const cfg = await chaosProxyService.getConfig(configId);
+    if (!cfg || !cfg.enabled) {
+        socket.destroy();
+        return;
+    }
+
+    (req as any).chaosConfig = cfg;
+    proxy.upgrade(req, socket, head);
+};
+
 export { app, proxy, handleUpgrade };
 
 if (require.main === module) {
   const server = app.listen(config.port, () => {
-    console.log(`🌪️ Chaos Proxy (Titanium Edition/Node) running on port ${config.port}`);
+    console.log(`🌪️ Chaos Proxy (Scalable Architecture) running on port ${config.port}`);
   });
 
-  // Explicitly handle upgrade for WebSockets
   server.on('upgrade', handleUpgrade);
 }

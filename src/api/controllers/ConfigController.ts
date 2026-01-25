@@ -1,9 +1,9 @@
 import { Request, Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
-import { redisService } from '../services/redis';
-import { ChaosConfig } from '../models/types';
+import { ConfigService } from '../../application/services/ConfigService';
 
-export const configController = {
+export class ConfigController {
+  constructor(private configService: ConfigService) {}
+
   /**
    * @openapi
    * /api/v1/configs:
@@ -33,18 +33,12 @@ export const configController = {
    */
   async create(req: Request, res: Response): Promise<void> {
     try {
-      const cfg: ChaosConfig = req.body;
-      cfg.id = cfg.id || uuidv4();
-      cfg.created_at = new Date().toISOString();
-      cfg.updated_at = new Date().toISOString();
-      cfg.enabled = cfg.enabled !== undefined ? cfg.enabled : true;
-
-      await redisService.saveConfig(cfg);
-      res.status(201).json(cfg);
+      const config = await this.configService.createConfig(req.body);
+      res.status(201).json(config);
     } catch (err) {
       res.status(500).json({ error: 'Failed to save config' });
     }
-  },
+  }
 
   /**
    * @openapi
@@ -56,14 +50,14 @@ export const configController = {
    *       200:
    *         description: List of chaos configurations
    */
-  async list(req: Request, res: Response) {
+  async list(req: Request, res: Response): Promise<void> {
     try {
-      const configs = await redisService.listConfigs();
+      const configs = await this.configService.listConfigs();
       res.json({ configs, count: configs.length });
     } catch (err) {
       res.status(500).json({ error: 'Failed to list configs' });
     }
-  },
+  }
 
   /**
    * @openapi
@@ -83,15 +77,18 @@ export const configController = {
    *       404:
    *         description: Not found
    */
-  async get(req: Request, res: Response) {
+  async get(req: Request, res: Response): Promise<void> {
     try {
-      const cfg = await redisService.getConfig(req.params.id as string);
-      if (!cfg) return res.status(404).json({ error: 'Not found' });
-      res.json(cfg);
+      const config = await this.configService.getConfig(req.params.id as string);
+      if (!config) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+      }
+      res.json(config);
     } catch (err) {
       res.status(500).json({ error: 'Failed to get config' });
     }
-  },
+  }
 
   /**
    * @openapi
@@ -115,18 +112,18 @@ export const configController = {
    *       200:
    *         description: Updated configuration
    */
-  async update(req: Request, res: Response) {
+  async update(req: Request, res: Response): Promise<void> {
     try {
-      const existing = await redisService.getConfig(req.params.id as string);
-      if (!existing) return res.status(404).json({ error: 'Not found' });
-
-      const cfg: ChaosConfig = { ...existing, ...req.body, id: existing.id, updated_at: new Date().toISOString() };
-      await redisService.saveConfig(cfg);
-      res.json(cfg);
+      const updated = await this.configService.updateConfig(req.params.id as string, req.body);
+      if (!updated) {
+        res.status(404).json({ error: 'Not found' });
+        return;
+      }
+      res.json(updated);
     } catch (err) {
       res.status(500).json({ error: 'Failed to update config' });
     }
-  },
+  }
 
   /**
    * @openapi
@@ -144,38 +141,12 @@ export const configController = {
    *       200:
    *         description: Configuration deleted
    */
-  async delete(req: Request, res: Response) {
+  async delete(req: Request, res: Response): Promise<void> {
     try {
-      await redisService.deleteConfig(req.params.id as string);
-      res.status(200).json({ message: 'Deleted', id: req.params.id as string });
+      await this.configService.deleteConfig(req.params.id as string);
+      res.status(200).json({ message: 'Deleted', id: req.params.id });
     } catch (err) {
       res.status(500).json({ error: 'Failed to delete config' });
     }
-  },
-
-  /**
-   * @openapi
-   * /api/v1/logs:
-   *   get:
-   *     summary: Get global chaos logs
-   *     tags: [Logs]
-   *     parameters:
-   *       - in: query
-   *         name: limit
-   *         schema:
-   *           type: integer
-   *         description: Number of logs to return
-   *     responses:
-   *       200:
-   *         description: List of request logs
-   */
-  async getLogs(req: Request, res: Response) {
-    try {
-      const limit = parseInt(req.query.limit as string) || 50;
-      const logs = await redisService.getLogs(limit);
-      res.json({ logs });
-    } catch (err) {
-      res.status(500).json({ error: 'Failed to get logs' });
-    }
   }
-};
+}

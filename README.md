@@ -1,24 +1,22 @@
 # 🌪️ Chaos API Proxy (Titanium/Node Edition)
 
 > **Un Web Proxy diseñado para introducir caos, latencia y fallos en tus APIs.**  
-> Ahora reescrito en **TypeScript (Node.js)** para máxima flexibilidad y programación dinámica.
+> Ahora reescrito en **TypeScript con Arquitectura Hexagonal** para máxima escalabilidad y robustez.
 
 ---
 
 ## 🚀 Características Principales
 
-- **🛡️ Intercepción Transparente**: Funciona como un proxy inverso entre tus clientes y tu API real.
-- **🔌 Soporte WebSocket (NUEVO)**: Proxy transparente para conexiones `ws://` y `wss://`.
-- **⏱️ Rate Limiting (NUEVO)**: Limita peticiones por segundo para simular estrés.
-- **📚 API Docs (NUEVO)**: Documentación interactiva Swagger/OpenAPI en `/api-docs`.
+- **🛡️ Intercepción Transparente**: Proxy reverso de alto rendimiento.
+- **🏗️ Arquitectura Hexagonal**: Código desacoplado, testearle y listo para escalar.
+- **🔌 Soporte WebSocket**: Proxy transparente para conexiones `ws://` y `wss://`.
+- **⏱️ Rate Limiting**: Redis-backed rate limiter distribuido.
 - **⏱️ Inyección de Latencia**: Fija o con _jitter_ (variable).
 - **💥 Inyección de Errores**: Retorna 500, 503, 404 a voluntad.
 - **🧬 Response Fuzzing**: Muta JSONs para probar robustez de clientes.
-- **📜 Dynamic Scripting**: Escribe lógica JS personalizada para decidir cuándo y cómo aplicar caos.
-- **📊 Métricas Prometheus**: Dashboards listos para consumir.
-- **🚦 Live Logs**: Monitor de tráfico en tiempo real.
-- **💻 Web Dashboard**: UI intuitiva para gestionar reglas y ver logs.
-- **✅ QA Ready**: Incluye Tests (Jest), Linter (ESLint) y CI (GitHub Actions).
+- **📜 Dynamic Scripting**: Lógica JS personalizada para control granular.
+- **📚 API Docs**: Swagger/OpenAPI en `/api-docs`.
+- **📊 Métricas Prometheus**: Instrumentación nativa para observabilidad.
 
 ---
 
@@ -39,7 +37,7 @@ El dashboard estará disponible en: [http://localhost:8081/dashboard](http://loc
 
 ### Opción 2: Local (Node.js)
 
-Requisitos: Node.js 18+, Redis.
+Requisitos: Node.js 18+, Redis corriendo localmente.
 
 ```bash
 # Instalar dependencias
@@ -48,50 +46,43 @@ npm install
 # Configurar entorno
 cp .env.example .env
 
-# Correr Tests (NUEVO)
+# Correr Tests
 npm test
 
 # Arrancar en modo desarrollo
 npm run dev
+
+# Compilar y arrancar producción
+npm run build
+npm start
 ```
+
+---
+
+## 🏛️ Arquitectura
+
+Este proyecto sigue una **Arquitectura Hexagonal (Clean Architecture)**:
+
+- **Core (`src/core`)**: Contiene la lógica de dominio pura (Chaos Engine, Script Engine) y definiciones de tipos independientes de frameworks.
+- **Application (`src/application`)**: Servicios que orquestan la lógica de negocio (`ChaosProxyService`, `ConfigService`).
+- **Infrastructure (`src/infrastructure`)**: Implementaciones concretas (Redis Repositories, Rate Limiters).
+- **API (`src/api`)**: Controladores REST y Rutas.
+- **Container (`src/container.ts`)**: Inyección de dependencias centralizada.
+
+Esta estructura permite escalar el proyecto, cambiar implementaciones (ej. cambiar Redis por Postgres) sin tocar la lógica de negocio, y facilita el testing unitario.
 
 ---
 
 ## 📜 Scripting Dinámico
 
-Ahora puedes escribir scripts JavaScript para controlar el caos con precisión quirúrgica.
-
-**Contexto disponible:**
-
-- `req`: `{ method, path, headers, query, body }`
-- `decision`: `{ shouldLatency, latencyMs, shouldError, errorCode, ... }`
-
-**Ejemplo 1: Caos solo para iPhones**
+Controla el caos programáticamente con JavaScript:
 
 ```javascript
-if (req.headers['user-agent'] && req.headers['user-agent'].includes('iPhone')) {
+/* Ejemplo: Latencia solo para usuarios móviles */
+if (req.headers['user-agent'] && req.headers['user-agent'].includes('Mobile')) {
   decision.shouldLatency = true;
-  decision.latencyMs = 2000;
+  decision.latencyMs = 1500;
 }
-```
-
-**Ejemplo 2: Error 1 de cada 10 peticiones POST**
-
-```javascript
-if (req.method === 'POST' && Math.random() < 0.1) {
-  decision.shouldError = true;
-  decision.errorCode = 503;
-}
-```
-
----
-
-## 🔒 Seguridad
-
-Configura `CHAOS_API_KEYS` en tu `.env` o `docker-compose.yml` para proteger el dashboard y la API de administración.
-
-```env
-CHAOS_API_KEYS=mi-clave-secreta-123
 ```
 
 ---

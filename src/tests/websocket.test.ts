@@ -4,7 +4,10 @@ jest.mock('ioredis'); // Auto-mock using src/__mocks__/ioredis.ts
 import { startEchoServer, stopEchoServer } from './ws-echo-server';
 import { app, proxy, handleUpgrade } from '../server';
 import { Server } from 'http';
-import { redisService } from '../services/redis';
+import { RedisConfigRepository } from '../infrastructure/redis/RedisConfigRepository';
+import redisClient from '../infrastructure/redis/RedisClient';
+
+const redisService = new RedisConfigRepository(); // Alias for easy replacement below
 
 // Mock Config for WS
 const WS_CONFIG_ID = 'ws-test-config';
@@ -19,7 +22,7 @@ describe('WebSocket Proxy', () => {
     await startEchoServer(WS_TARGET_PORT);
 
     // 2. Setup Chaos Config in Redis
-    await redisService.saveConfig({
+    await redisService.save({
         id: WS_CONFIG_ID,
         name: 'WS Test',
         target: `http://localhost:${WS_TARGET_PORT}`,
@@ -45,7 +48,7 @@ describe('WebSocket Proxy', () => {
     console.log('Test: Stopping echo server...');
     await stopEchoServer();
     console.log('Test: Quitting redis...');
-    await redisService.quit();
+    await redisClient.quit();
     console.log('Test: Cleanup done.');
   }, 10000);
 

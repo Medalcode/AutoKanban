@@ -1,15 +1,5 @@
-import { ChaosRules } from '../models/types';
-import { scriptEngine } from './scripting';
-
-export interface ChaosDecision {
-  shouldLatency: boolean;
-  latencyMs: number;
-  shouldError: boolean;
-  errorCode: number;
-  errorBody?: string;
-  shouldFuzz: boolean;
-  headers: Record<string, string>;
-}
+import { ChaosRules, ChaosDecision } from './types';
+import { scriptEngine } from './ScriptEngine';
 
 export class ChaosEngine {
   decide(rules: ChaosRules, req?: any): ChaosDecision {
@@ -19,7 +9,7 @@ export class ChaosEngine {
       shouldError: false,
       errorCode: 200,
       shouldFuzz: false,
-      headers: { ...rules.modify_headers }
+      headers: { ...rules.modify_headers },
     };
 
     // 1. Error Injection
@@ -27,7 +17,6 @@ export class ChaosEngine {
       decision.shouldError = true;
       decision.errorCode = rules.error_code || 500;
       decision.errorBody = rules.error_body || '{"error": "Chaos Engineering: Injected failure"}';
-      // Don't return yet, script might want to override
     }
 
     // 2. Latency Injection
@@ -48,7 +37,7 @@ export class ChaosEngine {
       }
     }
 
-    // 4. Dynamic Scripting (The God Mode)
+// 4. Dynamic Scripting (The God Mode)
     if (rules.script && req) {
       scriptEngine.execute(rules.script, { req, decision });
     }
@@ -59,14 +48,12 @@ export class ChaosEngine {
   fuzzBody(body: any, rate: number): any {
     if (!body) return body;
 
-    // Deep clone to avoid mutating original if passed by reference
     let content = body;
     try {
-      // If it's a Buffer or string, try to parse JSON
       if (Buffer.isBuffer(body)) content = JSON.parse(body.toString());
       else if (typeof body === 'string') content = JSON.parse(body);
     } catch {
-      return body; // Not JSON
+      return body; 
     }
 
     return this.mutate(content, rate);
@@ -82,7 +69,6 @@ export class ChaosEngine {
       }
       return newObj;
     } else {
-      // Primitive value: check if should mutate
       if (Math.random() < rate) {
         return this.applyMutation(obj);
       }
@@ -96,13 +82,13 @@ export class ChaosEngine {
 
     switch (choice) {
       case 0:
-        return null; // Nullify
-      case 1: // Type Swap
+        return null;
+      case 1:
         if (type === 'string') return 12345;
         if (type === 'number') return 'should_be_number';
         if (type === 'boolean') return 0;
         return 'swapped';
-      case 2: // Corruption
+      case 2:
         if (type === 'string') return val + '_CHAOS';
         if (type === 'number') return val * -1;
         if (type === 'boolean') return !val;
@@ -112,5 +98,3 @@ export class ChaosEngine {
     }
   }
 }
-
-export const chaosEngine = new ChaosEngine();

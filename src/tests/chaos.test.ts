@@ -1,8 +1,10 @@
-import { chaosEngine } from '../chaos';
+import { ChaosEngine } from '../core/domain/ChaosEngine';
 jest.mock('ioredis');
 
 import { Request } from 'express';
-import { ChaosRules } from '../models/types';
+import { ChaosRules } from '../core/domain/types';
+
+const chaosEngine = new ChaosEngine();
 
 describe('Chaos Engine', () => {
   const mockRequest = {
