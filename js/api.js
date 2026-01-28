@@ -4,8 +4,13 @@
 
 export async function fetchKanbanFromGitSpy(owner, repo) {
   if (!owner || !repo) throw new Error('owner and repo are required');
-  const base = 'https://git-spy-tau.vercel.app';
-  const url = `${base}/api/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/kanban`;
+  
+  // Usar ruta relativa para que funcione en el mismo despliegue de Vercel
+  const base = '/api';
+  
+  // Nota: La ruta de la funcion es /repos/..., asi que concatenamos
+  // API final: /api/repos/...
+  const url = `${base}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/kanban`;
 
   const res = await fetch(url, { headers: { Accept: 'application/json' } });
 
