@@ -146,7 +146,7 @@ export function initApp() {
   });
 
   syncBtn && syncBtn.addEventListener('click', async () => {
-    if (!currentOwner || !currentRepo || !currentState) { showMessage(msgEl, 'Carga un repo antes de sincronizar', 'error'); return; }
+    if (!currentOwner || !currentRepo || !currentState) { showMessage(msgEl, 'Primero carga un proyecto con el botón "Cargar proyecto"', 'error'); return; }
     const proceed = confirm('Confirmar: enviar cambios locales a GitHub via GITSPY?');
     if (!proceed) return;
     const dr = dryRunEl && dryRunEl.checked;
