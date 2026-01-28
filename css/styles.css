@@ -1,0 +1,9 @@
+/* css/styles.css - minimal enhancements for kanban layout */
+body { -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+#kanban-root { min-height: 240px; }
+.kanban-column { min-height: 120px; }
+.card-title { word-break: break-word; }
+
+@media (max-width: 640px) {
+  .kanban-column { padding: 0.5rem; }
+}

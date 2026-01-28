@@ -8,13 +8,14 @@
     window.tailwind = { config: { darkMode: 'class' } };
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen">
   <main class="p-6 max-w-6xl mx-auto">
     <header class="mb-6 flex items-center justify-between">
       <div>
-        <h1 class="text-xl font-semibold">AutoKanban — GitHub Bitacora</h1>
-        <p class="text-sm text-gray-400">Carga un Bitacora.md desde un repositorio público o privado (token opcional).</p>
+        <h1 class="text-xl font-semibold">AutoKanban — GITSPY Kanban Viewer</h1>
+        <p class="text-sm text-gray-400">Consume la API GITSPY y muestra un tablero Kanban en tiempo real.</p>
       </div>
     </header>
 
@@ -23,24 +24,45 @@
       <div class="grid gap-3 md:grid-cols-4">
         <input id="gh-owner" placeholder="owner" class="p-2 bg-gray-900 border border-gray-700 rounded" />
         <input id="gh-repo" placeholder="repo" class="p-2 bg-gray-900 border border-gray-700 rounded" />
-        <input id="gh-path" placeholder="path (Bitacora.md)" value="Bitacora.md" class="p-2 bg-gray-900 border border-gray-700 rounded" />
-        <input id="gh-branch" placeholder="branch" value="main" class="p-2 bg-gray-900 border border-gray-700 rounded" />
+        <input id="gh-path" placeholder="(no usado) path" value="Bitacora.md" class="p-2 bg-gray-900 border border-gray-700 rounded" />
+        <input id="gh-branch" placeholder="(no usado) branch" value="main" class="p-2 bg-gray-900 border border-gray-700 rounded" />
       </div>
 
       <div class="mt-3 flex items-center gap-3">
-        <input id="gh-token" type="password" placeholder="GitHub token (optional)" class="flex-1 p-2 bg-gray-900 border border-gray-700 rounded" />
-        <label class="text-sm text-gray-300 flex items-center gap-2"><input id="gh-save-token" type="checkbox" /> Guardar token</label>
+        <input id="gh-token" type="password" placeholder="(no usado) token" class="flex-1 p-2 bg-gray-900 border border-gray-700 rounded" />
+        <label class="text-sm text-gray-300 flex items-center gap-2"><input id="gh-save-token" type="checkbox" /> Guardar (no usado)</label>
         <button id="gh-load" class="ml-auto bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded">Cargar proyecto</button>
+      </div>
+
+      <div class="mt-3 flex items-center gap-3">
+        <button id="gh-sync" class="ml-auto bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded">Sync con GitHub</button>
+        <label class="text-sm text-gray-300 flex items-center gap-2"><input id="sync-dryrun" type="checkbox" /> Dry run</label>
+        <label class="text-sm text-gray-300 flex items-center gap-2"><input id="sync-preview" type="checkbox" /> Preview</label>
       </div>
 
       <div class="mt-3 flex items-center gap-3">
         <div id="gh-loader" class="hidden">🔄 Cargando...</div>
         <div id="gh-message" class="text-sm text-gray-300"></div>
+        <div id="local-indicator" class="hidden text-sm text-yellow-300">Estado: LOCAL</div>
+        <button id="clear-local" class="hidden bg-gray-700 text-xs px-2 py-1 rounded">Borrar estado local</button>
       </div>
     </section>
 
     <!-- Kanban root -->
     <section id="kanban-root"></section>
+
+    <section class="mt-6">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold">Timeline</h2>
+        <div class="flex items-center gap-2">
+          <button id="open-timeline" class="text-xs bg-gray-700 px-2 py-1 rounded">Abrir Timeline</button>
+        </div>
+      </div>
+      <div id="timeline-root" class="hidden grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div id="timeline-list" class="md:col-span-1"></div>
+        <div id="timeline-kanban" class="md:col-span-2"></div>
+      </div>
+    </section>
 
     <footer class="mt-8 text-xs text-gray-400">Compatible con GitHub Pages — Sin librerías</footer>
   </main>

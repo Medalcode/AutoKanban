@@ -6,9 +6,15 @@ autor: Equipo Frontend
 # (Actualmente no hay items pendientes)
 
 ## 🔵 En Desarrollo
-- [ ] Actualizar package.json | path: package.json | type: config
+
+# (Actualmente no hay items en desarrollo)
 
 ## 🟢 Completadas
+
+- [x] Refinar documentación | path: README.md | type: docs
+- [x] Actualizar package.json | path: package.json | type: config
+- [x] Investigación de estructura del proyecto | path: . | type: analysis
+- [x] Análisis de funcionalidad | path: README.md | type: analysis
 - [x] Implementar parser de bitácora | path: src/bitacoraParser.js | type: parser
 - [x] Añadir ejemplos y runner | path: examples/Bitacora.md | type: docs
 - [x] Añadir ejemplo runner | path: examples/runExample.js | type: util
@@ -19,4 +25,5 @@ autor: Equipo Frontend
 - [x] Añadir vercel config | path: vercel.json | type: devops
 
 ## Warnings
+
 - (ninguna)

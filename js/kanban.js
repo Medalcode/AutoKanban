@@ -62,7 +62,7 @@ function createBadge(key, value) {
 
 function createCard(feature) {
   const { title, done, metadata = {} } = feature;
-  const card = el('article', { class: 'bg-gray-800/60 border border-gray-700 rounded-lg p-4 shadow-sm' });
+  const card = el('article', { class: 'kanban-card bg-gray-800/60 border border-gray-700 rounded-lg p-4 shadow-sm', draggable: 'true', dataset: { id: feature.id } });
   const top = el('div', { class: 'flex items-start justify-between gap-3' });
   const titleEl = el('h3', { class: 'text-sm font-semibold leading-snug' }, title);
   const cb = el('input', { type: 'checkbox', disabled: true, class: 'w-4 h-4 mt-1' });
@@ -85,12 +85,14 @@ function renderColumn(titleEmoji, titleText, features) {
     el('h2', { class: 'text-sm font-semibold flex items-center gap-2' }, el('span', { class: 'text-lg' }, titleEmoji), titleText),
     el('span', { class: 'text-xs text-gray-300 bg-gray-800/40 px-2 py-0.5 rounded-full' }, String(features.length))
   );
-  const col = el('section', { class: 'bg-transparent rounded-md p-3' }, header);
+  const col = el('section', { class: 'kanban-column bg-transparent rounded-md p-3', dataset: { state: titleText.toLowerCase() } }, header);
   const list = el('div', { class: 'space-y-3' });
+  // placeholder used during drag
+  const placeholder = el('div', { class: 'kanban-placeholder hidden border-2 border-dashed border-gray-600 rounded-md p-4 mb-3' }, 'Arrastra aquí');
   const sorted = sortFeaturesByPriority(features || []);
   if (sorted.length === 0) list.append(el('div', { class: 'text-xs text-gray-400 italic' }, 'Sin items'));
   else for (const f of sorted) list.append(createCard(f));
-  col.append(list);
+  col.append(placeholder, list);
   return col;
 }
 
@@ -115,6 +117,11 @@ export function renderKanban(containerId, data = {}) {
     el('div', { class: 'text-xs text-gray-300' }, el('div', {}, `Project: ${meta.project || meta.proyecto || '-'}`), el('div', {}, `Author: ${meta.author || meta.autor || '-'}`)),
     el('div', { class: 'text-xs text-gray-400' }, new Date().toLocaleString())
   );
+  // show local badge if flagged
+  if (data._local) {
+    const localBadge = el('span', { class: 'ml-3 text-xs text-yellow-200 bg-yellow-800/30 px-2 py-0.5 rounded' }, 'LOCAL');
+    metaBar.append(localBadge);
+  }
   root.append(metaBar);
   const warningsPanel = renderWarningsPanel(data.warnings || []);
   if (warningsPanel) root.append(warningsPanel);
