@@ -34,7 +34,7 @@ npx serve .
 - `Bitacora.md`: Archivo fuente de las tareas.
 - `src/`: Lógica del parser (Core).
 - `js/`: Lógica de la aplicación frontend.
-- `api/`: Funciones Serverless para integración avanzada.
+- `api/`: Funciones Serverless (Vercel) que actúan como backend para leer/escribir en GitHub.
 - `index.html`: Punto de entrada de la aplicación.
 
 El archivo `Bitacora.md` se actualiza automáticamente al realizar cambios en el tablero (cuando la sincronización está activa).

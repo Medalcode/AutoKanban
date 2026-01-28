@@ -11,6 +11,10 @@ autor: Equipo Frontend
 
 ## 🟢 Completadas
 
+- [x] Añadir endpoint API GET Kanban | path: api/repos/[owner]/[repo]/kanban.js | type: backend
+- [x] Configurar CORS en Vercel | path: vercel.json | type: devops
+- [x] Corregir llamadas API a rutas relativas | path: js/api.js | type: fix
+- [x] Eliminar servidor local legacy | path: local-server.js | type: cleanup
 - [x] Refinar documentación | path: README.md | type: docs
 - [x] Actualizar package.json | path: package.json | type: config
 - [x] Investigación de estructura del proyecto | path: . | type: analysis
