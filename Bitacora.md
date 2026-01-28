@@ -1,0 +1,22 @@
+proyecto: AutoKanban
+autor: Equipo Frontend
+
+## 🟡 Pendiente
+
+# (Actualmente no hay items pendientes)
+
+## 🔵 En Desarrollo
+- [ ] Actualizar package.json | path: package.json | type: config
+
+## 🟢 Completadas
+- [x] Implementar parser de bitácora | path: src/bitacoraParser.js | type: parser
+- [x] Añadir ejemplos y runner | path: examples/Bitacora.md | type: docs
+- [x] Añadir ejemplo runner | path: examples/runExample.js | type: util
+- [x] Añadir integración GitHub (client) | path: js/github.js | type: integration
+- [x] Añadir wiring app (UI + fetch) | path: js/app.js | type: frontend
+- [x] Añadir renderer Kanban | path: js/kanban.js | type: frontend
+- [x] Añadir UI principal | path: index.html | type: frontend
+- [x] Añadir vercel config | path: vercel.json | type: devops
+
+## Warnings
+- (ninguna)
