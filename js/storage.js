@@ -2,6 +2,7 @@
 // localStorage helpers for AutoKanban
 
 const LS_PREFIX = 'autokanban_state_v1';
+const LS_LAST_REPO = 'autokanban_last_repo';
 
 export function storageKey(owner, repo) {
   return `${LS_PREFIX}:${owner}:${repo}`;
@@ -31,4 +32,24 @@ export function loadState(owner, repo) {
 
 export function clearState(owner, repo) {
   try { localStorage.removeItem(storageKey(owner, repo)); } catch (e) { }
+}
+
+// --- Persistence for User Preferences (Last visited repo) ---
+
+export function setLastRepo(owner, repo) {
+  if (!owner || !repo) return;
+  try {
+    localStorage.setItem(LS_LAST_REPO, JSON.stringify({ owner, repo }));
+  } catch (e) {
+    console.warn('setLastRepo failed', e);
+  }
+}
+
+export function getLastRepo() {
+  try {
+    const raw = localStorage.getItem(LS_LAST_REPO);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
 }

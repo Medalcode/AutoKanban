@@ -1,6 +1,6 @@
 // js/kanban.js
 // Renderer for Kanban (used by index.html and app.js)
-// Exports: renderKanban(containerId, data)
+// Exports: renderKanban(containerId, data), renderErrorState(containerId, error), renderEmptyState(containerId, meta)
 
 const PRIORITY_ORDER = { alta: 3, high: 3, media: 2, medium: 2, baja: 1, low: 1 };
 
@@ -128,4 +128,50 @@ export function renderKanban(containerId, data = {}) {
   const grid = el('div', { class: 'grid gap-4 sm:grid-cols-1 md:grid-cols-3' });
   grid.append(renderColumn('🟡', 'Pendiente', data.pendiente || []), renderColumn('🔵', 'En Desarrollo', data.desarrollo || []), renderColumn('🟢', 'Completadas', data.completadas || []));
   root.append(grid);
+}
+
+// -- UX Handling for Empty/Error States --
+
+export function renderErrorState(containerId, error) {
+  const root = document.getElementById(containerId);
+  if (!root) return;
+  root.innerHTML = '';
+  
+  const container = el('div', { class: 'flex flex-col items-center justify-center py-20 text-center animate-pulse' });
+  container.append(el('div', { class: 'text-6xl mb-4' }, '🔭'));
+  container.append(el('h3', { class: 'text-xl font-bold text-red-400 mb-2' }, 'Houston, tenemos un problema'));
+  
+  let msg = error.message || 'Error desconocido';
+  if (error.code === 404) msg = 'No encontramos el repositorio o el archivo Bitacora.md.';
+  
+  container.append(el('p', { class: 'text-gray-400 max-w-md mb-6' }, msg));
+  
+  const help = el('div', { class: 'text-xs text-gray-500' }, 
+    'Verifica que el repo sea público y tenga un archivo ',
+    el('code', { class: 'bg-gray-800 text-gray-300 px-1 rounded' }, 'Bitacora.md')
+  );
+  container.append(help);
+  
+  root.append(container);
+}
+
+export function renderEmptyState(containerId, meta) {
+  const root = document.getElementById(containerId);
+  if (!root) return;
+  root.innerHTML = '';
+
+  const container = el('div', { class: 'flex flex-col items-center justify-center py-20 text-center' });
+  container.append(el('div', { class: 'text-6xl mb-4 grayscale opacity-50' }, '📝'));
+  container.append(el('h3', { class: 'text-xl font-bold text-gray-200 mb-2' }, 'Tablero Vacío'));
+  container.append(el('p', { class: 'text-gray-400 max-w-md mb-6' }, 
+    `El archivo Bitacora.md existe, pero no detectamos tareas activas.`
+  ));
+  
+  const hint = el('div', { class: 'text-xs text-gray-500 bg-gray-900/50 p-4 rounded-lg text-left' },
+    el('p', { class: 'font-mono mb-2' }, 'Prueba agregando esto a tu Markdown:'),
+    el('pre', { class: 'text-green-400' }, '## Pendiente\n- [ ] Mi primera tarea :tag:')
+  );
+  container.append(hint);
+  
+  root.append(container);
 }

@@ -2,9 +2,10 @@
 // App wiring: UI, fetch from GitHub, parse and render Kanban
 // Exports initApp()
 
+import { normalizeKanban } from './model.js';
 import { fetchKanbanFromGitSpy } from './api.js';
-import { renderKanban } from './kanban.js';
-import { saveState, loadState, clearState } from './storage.js';
+import { renderKanban, renderErrorState, renderEmptyState } from './kanban.js';
+import { saveState, loadState, clearState, setLastRepo, getLastRepo } from './storage.js';
 import { enableDragAndDrop, moveCard, reorderCard } from './dragdrop.js';
 import { syncToGitSpy } from './sync.js';
 import { fetchHistory, renderTimeline, renderHistoricalKanban, diffKanbans } from './history.js';
@@ -20,18 +21,10 @@ function showMessage(container, text, type = 'info') {
   container.className = type === 'error' ? 'text-sm text-red-400' : 'text-sm text-green-300';
 }
 
-async function loadAndRender(config, opts = {}) {
-  const { onStart, onDone, onError } = opts;
-  try {
-    onStart && onStart();
-    const res = await fetchKanbanFromGitSpy(config.owner, config.repo);
-    // GITSPY response shape: { meta, kanban: { pendiente, desarrollo, completadas }, warnings }
-    const data = Object.assign({}, res.kanban || {}, { meta: res.meta || {}, warnings: res.warnings || [] });
-    renderKanban('kanban-root', data);
-    onDone && onDone(data);
-  } catch (err) {
-    onError && onError(err);
-  }
+// Data Logic: Fetch + Normalize (No UI)
+async function loadKanban(owner, repo) {
+  const res = await fetchKanbanFromGitSpy(owner, repo);
+  return normalizeKanban(res);
 }
 
 export function initApp() {
@@ -57,12 +50,28 @@ export function initApp() {
     saveTokenEl.checked = true;
   }
 
-  // Read owner/repo from query params if present -> auto-fill (and auto-load)
+  // UX: Auto-fill from URL or Persistence
   const params = new URLSearchParams(window.location.search);
   const qOwner = params.get('owner');
   const qRepo = params.get('repo');
-  if (qOwner) ownerEl.value = qOwner;
-  if (qRepo) repoEl.value = qRepo;
+  
+  let shouldAutoLoad = false;
+
+  if (qOwner && qRepo) {
+    // 1. Priority: URL Query Params
+    ownerEl.value = qOwner;
+    repoEl.value = qRepo;
+    shouldAutoLoad = true;
+  } else {
+    // 2. Fallback: Last visited repo
+    const last = getLastRepo();
+    if (last && last.owner && last.repo) {
+      ownerEl.value = last.owner;
+      repoEl.value = last.repo;
+      // We fill inputs but don't auto-load to avoid surprises, unless desired.
+      // User can simply click "Load".
+    }
+  }
 
   const readConfigFromInputs = () => ({ owner: ownerEl.value.trim(), repo: repoEl.value.trim() });
 
@@ -106,6 +115,11 @@ export function initApp() {
     }
     currentOwner = cfg.owner;
     currentRepo = cfg.repo;
+    
+    // Updates: Persist last visited & Update URL
+    setLastRepo(currentOwner, currentRepo);
+    const newUrl = `${window.location.pathname}?owner=${encodeURIComponent(currentOwner)}&repo=${encodeURIComponent(currentRepo)}`;
+    window.history.replaceState(null, '', newUrl);
 
     // Persist token if requested
     if (saveTokenEl.checked && tokenEl.value.trim()) {
@@ -124,18 +138,38 @@ export function initApp() {
       return;
     }
 
-    await loadAndRender(cfg, {
-      onStart: () => { showLoader(loaderEl, true); showMessage(msgEl, 'Cargando...', 'info'); },
-      onDone: (parsed) => { showLoader(loaderEl, false); showMessage(msgEl, 'Carga correcta', 'info'); renderAndAttach(parsed); },
-      onError: (err) => {
-        showLoader(loaderEl, false);
-        console.error(err);
-        if (err.code === 404) showMessage(msgEl, 'Archivo no encontrado (404). Revisa owner/repo/path.', 'error');
-        else if (err.code === 401) showMessage(msgEl, 'Token inválido (401). Revisa el token.', 'error');
-        else if (err.code === 403) showMessage(msgEl, 'Acceso denegado o rate limit (403). Intenta con token.', 'error');
-        else showMessage(msgEl, `Error: ${err.message || err}`, 'error');
+    // --- Controller Flow: Load -> Check -> Render ---
+    try {
+      // 1. UI: Start Loading
+      showLoader(loaderEl, true);
+      showMessage(msgEl, 'Cargando...', 'info');
+      qs('kanban-root').innerHTML = ''; // Reset View
+
+      // 2. Data: Fetch & Normalize
+      // (Independent of UI state)
+      const data = await loadKanban(cfg.owner, cfg.repo);
+
+      showLoader(loaderEl, false);
+
+      // 3. Logic & Render
+      const totalItems = data.pendiente.length + data.desarrollo.length + data.completadas.length;
+      if (totalItems === 0) {
+        showMessage(msgEl, 'Repositorio vacío o sin tareas', 'info');
+        renderEmptyState('kanban-root', data.meta);
+      } else {
+        showMessage(msgEl, 'Carga correcta', 'info');
+        renderAndAttach(data);
       }
-    });
+    } catch (err) {
+      // 4. Error Handling
+      showLoader(loaderEl, false);
+      console.error(err);
+      renderErrorState('kanban-root', err);
+      
+      if (err.code === 404) showMessage(msgEl, 'No encontrado (404)', 'error');
+      else if (err.code === 403) showMessage(msgEl, 'Acceso denegado (403)', 'error');
+      else showMessage(msgEl, 'Error al cargar', 'error');
+    }
   });
 
   clearLocalBtn && clearLocalBtn.addEventListener('click', () => {
@@ -201,7 +235,7 @@ export function initApp() {
   }
 
   // If both owner & repo were provided via querystring, auto-click load
-  if (qOwner && qRepo) {
+  if (shouldAutoLoad) {
     setTimeout(() => loadBtn.click(), 200);
   }
 
