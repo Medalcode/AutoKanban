@@ -185,6 +185,17 @@ export function initApp() {
 
   syncBtn && syncBtn.addEventListener('click', async () => {
     if (!currentOwner || !currentRepo || !currentState) { showMessage(msgEl, 'Primero carga un proyecto con el botón "Cargar proyecto"', 'error'); return; }
+    
+    // ARCHITECTURAL CHANGE: Default mode is Read-Only.
+    // Sync requires explicit authentication via Token.
+    // This prevents 500 errors when users try to sync without auth.
+    if (!tokenEl.value || !tokenEl.value.trim()) {
+        const errorMsg = '⚠️ Modo de Solo Lectura: Para sincronizar, necesitas ingresar un GitHub Token.';
+        showMessage(msgEl, errorMsg, 'error');
+        alert(errorMsg); // UX Requirement: Clear message
+        return;
+    }
+
     const proceed = confirm('Confirmar: enviar cambios locales a GitHub via GITSPY?');
     if (!proceed) return;
     const dr = dryRunEl && dryRunEl.checked;
@@ -209,8 +220,14 @@ export function initApp() {
     } catch (err) {
       showLoader(loaderEl, false);
       console.error(err);
-      if (err.status === 409) showMessage(msgEl, 'Conflict (409): SHA mismatch. Re-fetch and merge manually.', 'error');
-      else showMessage(msgEl, `Sync error: ${err.message}`, 'error');
+
+      let displayText = `Sync error: ${err.message}`;
+      if (err.status === 401 || err.status === 403) displayText = 'Repositorio no autorizado o privado (401/403)';
+      else if (err.status === 404) displayText = 'Bitacora.md no encontrada (404)';
+      else if (err.status === 500) displayText = 'Error interno del servidor (500)';
+      else if (err.status === 409) displayText = 'Conflict (409): SHA mismatch. Re-fetch and merge manually.';
+
+      showMessage(msgEl, displayText, 'error');
     }
   });
 
