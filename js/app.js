@@ -186,6 +186,16 @@ export function initApp() {
   syncBtn && syncBtn.addEventListener('click', async () => {
     if (!currentOwner || !currentRepo || !currentState) { showMessage(msgEl, 'Primero carga un proyecto con el botón "Cargar proyecto"', 'error'); return; }
     
+    // FEATURE FLAG: Disable Sync by default in production
+    const featureFlagSync = false;
+
+    if (!featureFlagSync) {
+      const msg = 'Sync experimental — requiere autenticación GitHub (próximamente)';
+      showMessage(msgEl, msg, 'info');
+      alert(msg);
+      return;
+    }
+
     // ARCHITECTURAL CHANGE: Default mode is Read-Only.
     // Sync requires explicit authentication via Token.
     // This prevents 500 errors when users try to sync without auth.
