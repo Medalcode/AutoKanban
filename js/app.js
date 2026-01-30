@@ -156,6 +156,10 @@ export function initApp() {
       if (totalItems === 0) {
         showMessage(msgEl, 'Repositorio vacío o sin tareas', 'info');
         renderEmptyState('kanban-root', data.meta);
+        
+        // Fix: Set state even if empty, so Sync button works (e.g. to push first items)
+        currentState = data;
+        currentState._local = false;
       } else {
         showMessage(msgEl, 'Carga correcta', 'info');
         renderAndAttach(data);

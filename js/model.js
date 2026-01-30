@@ -45,33 +45,66 @@ export function normalizeKanban(data) {
   }
   const safeData = data;
 
-  // 2. Normalize columns (defensive array check)
-  // AutoKanban specifically expects these 3 columns.
-  const columns = ['pendiente', 'desarrollo', 'completadas'];
-  const normalizedColumns = {};
-  
-  // Detect unknown columns in source for logging
-  const sourceColumns = safeData.kanban ? Object.keys(safeData.kanban) : Object.keys(safeData);
-  const unknownCols = sourceColumns.filter(k => !columns.includes(k) && k !== 'meta' && k !== 'warnings' && k !== 'kanban');
-  if (unknownCols.length > 0) {
-    logWarn('UNKNOWN_COLUMNS', `Ignored extra columns: ${unknownCols.join(', ')}`);
-  }
+  // 2. Normalize columns
+  const columnsMap = {
+    'pendiente': ['pendiente', 'pending', 'todo'],
+    'desarrollo': ['desarrollo', 'in_progress', 'doing', 'wip'],
+    'completadas': ['completadas', 'completed', 'done']
+  };
+  const normalizedColumns = { pendiente: [], desarrollo: [], completadas: [] };
 
-  columns.forEach(col => {
-    // Check if column exists in kanban object or root (depending on API nesting)
-    // The API usually returns { kanban: { pendiente: [] } } or just flat { pendiente: [] }
-    // We check both for robustness.
-    const rawCol = (safeData.kanban && safeData.kanban[col]) || safeData[col];
-    
-    if (Array.isArray(rawCol)) {
-      normalizedColumns[col] = rawCol.map(item => normalizeFeature(item, col));
-    } else {
-      if (rawCol !== undefined) {
-         logWarn('INVALID_COLUMN_TYPE', `Column '${col}' is not an array`, rawCol);
+  // DETECT: Relational Format (GitSpy v2)
+  // { kanban: { features: [...], states: { pending: [...ids...] } } }
+  if (safeData.kanban && Array.isArray(safeData.kanban.features) && safeData.kanban.states) {
+    const featureMap = new Map();
+    safeData.kanban.features.forEach(f => {
+      if (f && f.id) featureMap.set(f.id, f);
+    });
+
+    Object.keys(columnsMap).forEach(targetCol => {
+      const possibleKeys = columnsMap[targetCol];
+      // Find which key exists in 'states'
+      const stateKey = possibleKeys.find(k => safeData.kanban.states[k]);
+      
+      if (stateKey && Array.isArray(safeData.kanban.states[stateKey])) {
+        // Hydrate IDs to Objects
+        normalizedColumns[targetCol] = safeData.kanban.states[stateKey]
+          .map(id => {
+            const f = featureMap.get(id);
+            // If feature not found by ID (weird), create a placeholder or skip?
+            // Better to show it as missing or try to find it in raw?
+            // Actually, let's normalize the feature object found
+            return f ? normalizeFeature(f, targetCol) : null;
+          })
+          .filter(Boolean);
       }
-      normalizedColumns[col] = [];
-    }
-  });
+    });
+
+  } else {
+    // FALLBACK: Legacy/Simple Format (Nested Arrays)
+    // { kanban: { pendiente: [...] } }
+    Object.keys(columnsMap).forEach(targetCol => {
+        const possibleKeys = columnsMap[targetCol];
+        let foundData = null;
+        
+        // Search in data.kanban or root
+        for (const key of possibleKeys) {
+            if (safeData.kanban && Array.isArray(safeData.kanban[key])) {
+                foundData = safeData.kanban[key]; break;
+            }
+            if (Array.isArray(safeData[key])) {
+                foundData = safeData[key]; break;
+            }
+        }
+
+        if (foundData) {
+            normalizedColumns[targetCol] = foundData.map(item => normalizeFeature(item, targetCol));
+        } else {
+             // Just empty, maybe log if strict
+             // logWarn('EMPTY_OR_MISSING_COL', `Column '${targetCol}' not found`);
+        }
+    });
+  }
 
   // 3. Normalize Metadata
   let meta = {};
