@@ -1,33 +1,123 @@
-proyecto: AutoKanban
-autor: Equipo Frontend
+# Bitacora
 
-## 🟡 Pendiente
+## 📌 Meta
 
-# (Actualmente no hay items pendientes)
+- Project: AutoKanban
+- Owner: Medalcode
+- Repo: AutoKanban
+- Started: 2026-01-30
+- LastUpdate: 2026-01-30
 
-## 🔵 En Desarrollo
+## 🧱 Features
 
-# (Actualmente no hay items en desarrollo)
+### [DONE] add-endpoint-api-get-kanban — Añadir endpoint API GET Kanban
 
-## 🟢 Completadas
+- Description: path: api/repos/[owner]/[repo]/kanban.js
+- Tags: backend
+- Started: 2026-01-30
+- Completed: 2026-01-30
 
-- [x] Añadir endpoint API GET Kanban | path: api/repos/[owner]/[repo]/kanban.js | type: backend
-- [x] Configurar CORS en Vercel | path: vercel.json | type: devops
-- [x] Corregir llamadas API a rutas relativas | path: js/api.js | type: fix
-- [x] Eliminar servidor local legacy | path: local-server.js | type: cleanup
-- [x] Refinar documentación | path: README.md | type: docs
-- [x] Actualizar package.json | path: package.json | type: config
-- [x] Investigación de estructura del proyecto | path: . | type: analysis
-- [x] Análisis de funcionalidad | path: README.md | type: analysis
-- [x] Implementar parser de bitácora | path: src/bitacoraParser.js | type: parser
-- [x] Añadir ejemplos y runner | path: examples/Bitacora.md | type: docs
-- [x] Añadir ejemplo runner | path: examples/runExample.js | type: util
-- [x] Añadir integración GitHub (client) | path: js/github.js | type: integration
-- [x] Añadir wiring app (UI + fetch) | path: js/app.js | type: frontend
-- [x] Añadir renderer Kanban | path: js/kanban.js | type: frontend
-- [x] Añadir UI principal | path: index.html | type: frontend
-- [x] Añadir vercel config | path: vercel.json | type: devops
+### [DONE] configurar-cors-en-vercel — Configurar CORS en Vercel
 
-## Warnings
+- Description: path: vercel.json
+- Tags: devops
+- Started: 2026-01-30
+- Completed: 2026-01-30
 
-- (ninguna)
+### [DONE] corregir-llamadas-api-a-rutas-relativas — Corregir llamadas API a rutas relativas
+
+- Description: path: js/api.js
+- Tags: fix
+- Started: 2026-01-30
+- Completed: 2026-01-30
+
+### [DONE] eliminar-servidor-local-legacy — Eliminar servidor local legacy
+
+- Description: path: local-server.js
+- Tags: cleanup
+- Started: 2026-01-30
+- Completed: 2026-01-30
+
+### [DONE] refinar-documentacion — Refinar documentación
+
+- Description: path: README.md
+- Tags: docs
+- Started: 2026-01-30
+- Completed: 2026-01-30
+
+### [DONE] actualizar-package-json — Actualizar package.json
+
+- Description: path: package.json
+- Tags: config
+- Started: 2026-01-30
+- Completed: 2026-01-30
+
+### [DONE] investigacion-de-estructura-del-proyecto — Investigación de estructura del proyecto
+
+- Description: path: .
+- Tags: analysis
+- Started: 2026-01-30
+- Completed: 2026-01-30
+
+### [DONE] analisis-de-funcionalidad — Análisis de funcionalidad
+
+- Description: path: README.md
+- Tags: analysis
+- Started: 2026-01-30
+- Completed: 2026-01-30
+
+### [DONE] implementar-parser-de-bitacora — Implementar parser de bitácora
+
+- Description: path: src/bitacoraParser.js
+- Tags: parser
+- Started: 2026-01-30
+- Completed: 2026-01-30
+
+### [DONE] anadir-ejemplos-y-runner — Añadir ejemplos y runner
+
+- Description: path: examples/Bitacora.md
+- Tags: docs
+- Started: 2026-01-30
+- Completed: 2026-01-30
+
+### [DONE] anadir-ejemplo-runner — Añadir ejemplo runner
+
+- Description: path: examples/runExample.js
+- Tags: util
+- Started: 2026-01-30
+- Completed: 2026-01-30
+
+### [DONE] anadir-integracion-github-client — Añadir integración GitHub (client)
+
+- Description: path: js/github.js
+- Tags: integration
+- Started: 2026-01-30
+- Completed: 2026-01-30
+
+### [DONE] anadir-wiring-app — Añadir wiring app (UI + fetch)
+
+- Description: path: js/app.js
+- Tags: frontend
+- Started: 2026-01-30
+- Completed: 2026-01-30
+
+### [DONE] anadir-renderer-kanban — Añadir renderer Kanban
+
+- Description: path: js/kanban.js
+- Tags: frontend
+- Started: 2026-01-30
+- Completed: 2026-01-30
+
+### [DONE] anadir-ui-principal — Añadir UI principal
+
+- Description: path: index.html
+- Tags: frontend
+- Started: 2026-01-30
+- Completed: 2026-01-30
+
+### [DONE] anadir-vercel-config — Añadir vercel config
+
+- Description: path: vercel.json
+- Tags: devops
+- Started: 2026-01-30
+- Completed: 2026-01-30
